@@ -4,9 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Logo from '@/components/Logo';
-
-const ADMIN_EMAIL = 'ngabulokana75@gmail.com';
-const ADMIN_PASSWORD = 'a-z,A-Z,9-1'; // Hårdkodat admin-lösenord
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function AdminLoginPage() {
   const [email, setEmail] = useState('');
@@ -14,51 +12,37 @@ export default function AdminLoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const { login } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
-    // Kontrollera att det är admin-emailen
-    if (email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
-      setError('Endast administratörer kan logga in här');
-      setLoading(false);
-      return;
-    }
-
-    // Kontrollera att lösenordet är korrekt
-    if (password !== ADMIN_PASSWORD) {
-      setError('Felaktigt administratörslösenord');
-      setLoading(false);
-      return;
-    }
-
     try {
-      // För admin, använd hårdkodat lösenord istället för databas
-      // Skapa en mock admin-användare
-      const adminUser = {
-        id: 'admin-user-id',
-        email: ADMIN_EMAIL,
-        role: 'admin',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-
-      // Generera JWT token
-      const mockToken = btoa(JSON.stringify({
-        userId: adminUser.id,
-        email: adminUser.email,
-        role: adminUser.role,
-        timestamp: Date.now(),
-      }));
-
-      // Spara token och user i localStorage
-      localStorage.setItem('token', mockToken);
-      localStorage.setItem('user', JSON.stringify(adminUser));
-
-      // Redirect till admin dashboard
-      router.push('/admin');
+      // Use the same login endpoint as regular users
+      await login(email, password);
+      
+      // Get user from localStorage to check role
+      const userStr = localStorage.getItem('user');
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        
+        // Verify user is admin
+        if (user.role !== 'admin') {
+          setError('Endast administratörer kan logga in här');
+          // Clear non-admin user
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          setLoading(false);
+          return;
+        }
+        
+        // Redirect to admin dashboard
+        router.push('/admin');
+      } else {
+        setError('Ett fel uppstod vid inloggning');
+      }
     } catch (err: any) {
       setError(err.message || 'Ett fel uppstod vid inloggning');
     } finally {
@@ -112,14 +96,11 @@ export default function AdminLoginPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gold-500 focus:border-transparent"
-                placeholder="ngabulokana75@gmail.com"
+                placeholder="admin@example.com"
                 autoComplete="email"
               />
               <p className="mt-1 text-xs text-gray-500">
-                Endast {ADMIN_EMAIL} kan logga in här
-              </p>
-              <p className="mt-1 text-xs font-semibold text-gold-600">
-                Administratörslösenord: a-z,A-Z,9-1
+                Använd ditt administratörskonto
               </p>
             </div>
 
