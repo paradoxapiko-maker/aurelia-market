@@ -8,15 +8,20 @@ import CheckoutForm from '@/components/CheckoutForm';
 import { useCartStore } from '@/store/cartStore';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
+import { SHIPPING_CARRIERS, isFreeShipping, getAmountUntilFreeShipping } from '@/lib/shipping';
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLIC_KEY!);
 
 export default function CheckoutPage() {
   const [clientSecret, setClientSecret] = useState('');
   const [loading, setLoading] = useState(true);
-  const { items, getTotalPrice } = useCartStore();
+  const { items, getTotalPrice, selectedCarrier, setCarrier, getShippingCost, getTotalWithShipping } = useCartStore();
   const { user, token } = useAuth();
   const router = useRouter();
+
+  const subtotal = getTotalPrice();
+  const freeShipping = isFreeShipping(subtotal);
+  const amountUntilFree = getAmountUntilFreeShipping(subtotal);
 
   useEffect(() => {
     if (!user) {
@@ -29,11 +34,19 @@ export default function CheckoutPage() {
       return;
     }
 
+    // Set default carrier if none selected and shipping is not free
+    if (!selectedCarrier && !freeShipping) {
+      setCarrier('postnord');
+    }
+
     createPaymentIntent();
-  }, [user, items]);
+  }, [user, items, selectedCarrier]);
 
   const createPaymentIntent = async () => {
     try {
+      const shippingCost = getShippingCost();
+      const total = getTotalWithShipping();
+      
       const response = await fetch('/api/checkout/create-payment-intent', {
         method: 'POST',
         headers: {
@@ -42,7 +55,10 @@ export default function CheckoutPage() {
         },
         body: JSON.stringify({
           cartItems: items,
-          paymentMethod: 'card'
+          paymentMethod: 'card',
+          shippingCarrier: selectedCarrier,
+          shippingCost: shippingCost,
+          total: total
         })
       });
 
@@ -145,19 +161,44 @@ export default function CheckoutPage() {
                 <div className="space-y-3 pt-4 border-t-2 border-gray-200">
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600">Delsumma:</span>
-                    <span className="font-semibold">{getTotalPrice()} kr</span>
+                    <span className="font-semibold">{subtotal.toFixed(2)} kr</span>
                   </div>
+                  
+                  {/* Free Shipping Progress */}
+                  {!freeShipping && amountUntilFree > 0 && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 my-3">
+                      <p className="text-xs text-blue-800 font-semibold mb-2">
+                        🎉 Handla för {amountUntilFree.toFixed(2)} kr till för fri frakt!
+                      </p>
+                      <div className="w-full bg-blue-200 rounded-full h-2">
+                        <div 
+                          className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                          style={{ width: `${Math.min((subtotal / 500) * 100, 100)}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600">Frakt:</span>
-                    <span className="font-semibold text-green-600">Gratis</span>
+                    {freeShipping ? (
+                      <span className="font-semibold text-green-600 flex items-center gap-1">
+                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/>
+                        </svg>
+                        Gratis
+                      </span>
+                    ) : (
+                      <span className="font-semibold">{getShippingCost()} kr</span>
+                    )}
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600">Moms (25%):</span>
-                    <span className="font-semibold">{Math.round(getTotalPrice() * 0.2)} kr</span>
+                    <span className="font-semibold">{Math.round(getTotalWithShipping() * 0.2)} kr</span>
                   </div>
                   <div className="flex justify-between text-xl md:text-2xl font-bold pt-3 border-t-2 border-gray-200">
                     <span>Totalt:</span>
-                    <span className="text-gold-600">{getTotalPrice()} kr</span>
+                    <span className="text-gold-600">{getTotalWithShipping().toFixed(2)} kr</span>
                   </div>
                 </div>
 
@@ -181,6 +222,78 @@ export default function CheckoutPage() {
 
             {/* Payment Form - Right Side on Desktop */}
             <div className="lg:col-span-2 order-1 lg:order-2">
+              {/* Shipping Selection */}
+              {!freeShipping && (
+                <div className="bg-white rounded-2xl shadow-xl p-6 md:p-8 border border-gray-200 mb-6">
+                  <h2 className="text-xl md:text-2xl font-bold mb-6 flex items-center gap-2">
+                    <svg className="w-6 h-6 text-gold-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                    </svg>
+                    Välj Fraktalternativ
+                  </h2>
+
+                  <div className="space-y-3">
+                    {SHIPPING_CARRIERS.map((carrier) => (
+                      <label
+                        key={carrier.id}
+                        className={`flex items-center justify-between p-4 border-2 rounded-xl cursor-pointer transition-all ${
+                          selectedCarrier === carrier.id
+                            ? 'border-gold-500 bg-gold-50 shadow-md'
+                            : 'border-gray-200 hover:border-gold-300 hover:bg-gray-50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-4 flex-1">
+                          <input
+                            type="radio"
+                            name="shipping"
+                            value={carrier.id}
+                            checked={selectedCarrier === carrier.id}
+                            onChange={() => setCarrier(carrier.id)}
+                            className="w-5 h-5 text-gold-600 focus:ring-gold-500"
+                          />
+                          <div className="flex-1">
+                            <div className="font-bold text-lg">{carrier.name}</div>
+                            <div className="text-sm text-gray-600">{carrier.description}</div>
+                            <div className="text-xs text-gray-500 mt-1">
+                              Leverans: {carrier.estimatedDays} arbetsdagar
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="font-bold text-xl text-gold-600">{carrier.price} kr</div>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+
+                  <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                    <p className="text-sm text-green-800 flex items-center gap-2">
+                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd"/>
+                      </svg>
+                      <span className="font-semibold">Fri frakt vid köp över 500 kr!</span>
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {freeShipping && (
+                <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-2xl shadow-xl p-6 md:p-8 border-2 border-green-300 mb-6">
+                  <div className="flex items-center gap-4">
+                    <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0">
+                      <svg className="w-10 h-10 text-white" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M8 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM15 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z"/>
+                        <path d="M3 4a1 1 0 00-1 1v10a1 1 0 001 1h1.05a2.5 2.5 0 014.9 0H10a1 1 0 001-1V5a1 1 0 00-1-1H3zM14 7a1 1 0 00-1 1v6.05A2.5 2.5 0 0115.95 16H17a1 1 0 001-1v-5a1 1 0 00-.293-.707l-2-2A1 1 0 0015 7h-1z"/>
+                      </svg>
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-2xl font-bold text-green-800 mb-1">🎉 Grattis! Fri Frakt!</h3>
+                      <p className="text-green-700">Din beställning kvalificerar för fri frakt. Vi skickar med den snabbaste tillgängliga transportören.</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="bg-white rounded-2xl shadow-xl p-6 md:p-8 border border-gray-200">
                 <h2 className="text-xl md:text-2xl font-bold mb-6 flex items-center gap-2">
                   <svg className="w-6 h-6 text-gold-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">

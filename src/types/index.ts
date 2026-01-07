@@ -93,9 +93,20 @@ export interface AuthResponse {
 
 export type PaymentMethod = 'card' | 'paypal' | 'klarna';
 
+export type ShippingProvider = 'dhl' | 'postnord' | 'db-schenker';
+
+export interface ShippingOption {
+  id: ShippingProvider;
+  name: string;
+  price: number;
+  estimatedDays: string;
+  description: string;
+}
+
 export interface PaymentIntentRequest {
   cartItems: CartItem[];
   paymentMethod: PaymentMethod;
+  shippingProvider?: ShippingProvider;
 }
 
 export interface PaymentIntentResponse {

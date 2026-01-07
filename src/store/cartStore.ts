@@ -1,14 +1,19 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { Product, CartItem } from '@/types';
+import { calculateShipping } from '@/lib/shipping';
 
 interface CartStore {
   items: CartItem[];
+  selectedCarrier: string | null;
   addItem: (product: Product) => void;
   removeItem: (productId: string) => void;
   updateQuantity: (productId: string, quantity: number) => void;
+  setCarrier: (carrierId: string) => void;
   clearCart: () => void;
   getTotalPrice: () => number;
+  getShippingCost: () => number;
+  getTotalWithShipping: () => number;
   getTotalItems: () => number;
 }
 
@@ -16,6 +21,7 @@ export const useCartStore = create<CartStore>()(
   persist(
     (set, get) => ({
       items: [],
+      selectedCarrier: null,
 
       addItem: (product) => {
         set((state) => {
@@ -70,8 +76,12 @@ export const useCartStore = create<CartStore>()(
         }));
       },
 
+      setCarrier: (carrierId) => {
+        set({ selectedCarrier: carrierId });
+      },
+
       clearCart: () => {
-        set({ items: [] });
+        set({ items: [], selectedCarrier: null });
       },
 
       getTotalPrice: () => {
@@ -79,6 +89,16 @@ export const useCartStore = create<CartStore>()(
           (total, item) => total + item.product.price * item.quantity,
           0
         );
+      },
+
+      getShippingCost: () => {
+        const subtotal = get().getTotalPrice();
+        const carrierId = get().selectedCarrier;
+        return calculateShipping(subtotal, carrierId || undefined);
+      },
+
+      getTotalWithShipping: () => {
+        return get().getTotalPrice() + get().getShippingCost();
       },
 
       getTotalItems: () => {
