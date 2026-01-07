@@ -14,6 +14,13 @@ export interface User {
   id: string;
   email: string;
   role: UserRole;
+  fullName?: string;
+  phone?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  postalCode?: string;
+  country?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -84,6 +91,24 @@ export interface LoginCredentials {
 export interface RegisterData {
   email: string;
   password: string;
+  fullName: string;
+  phone: string;
+  addressLine1: string;
+  addressLine2?: string;
+  city: string;
+  postalCode: string;
+  country?: string;
+}
+
+export interface ShippingInfo {
+  name: string;
+  email: string;
+  phone: string;
+  addressLine1: string;
+  addressLine2?: string;
+  city: string;
+  postalCode: string;
+  country: string;
 }
 
 export interface AuthResponse {

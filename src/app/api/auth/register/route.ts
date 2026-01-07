@@ -13,6 +13,13 @@ export const runtime = 'nodejs';
 const registerSchema = z.object({
   email: z.string().email('Ogiltig e-postadress'),
   password: z.string().min(8, 'Lösenordet måste vara minst 8 tecken'),
+  fullName: z.string().min(2, 'Namn måste vara minst 2 tecken'),
+  phone: z.string().min(5, 'Telefonnummer krävs'),
+  addressLine1: z.string().min(3, 'Gatuadress krävs'),
+  addressLine2: z.string().optional(),
+  city: z.string().min(2, 'Stad krävs'),
+  postalCode: z.string().min(5, 'Postnummer krävs'),
+  country: z.string().default('Sverige'),
 });
 
 // Response type
@@ -36,7 +43,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<RegisterR
     // Parse and validate request body
     const body = await request.json();
     const validatedData = registerSchema.parse(body);
-    const { email, password } = validatedData;
+    const { email, password, fullName, phone, addressLine1, addressLine2, city, postalCode, country } = validatedData;
 
     console.log('[REGISTER] Attempt for:', email);
 
@@ -73,10 +80,14 @@ export async function POST(request: NextRequest): Promise<NextResponse<RegisterR
 
     // Create user
     const insertResult = await turso.execute({
-      sql: `INSERT INTO users (email, password_hash, role, created_at, updated_at) 
-            VALUES (?, ?, ?, datetime('now'), datetime('now')) 
-            RETURNING id, email, role, created_at, updated_at`,
-      args: [email, passwordHash, role]
+      sql: `INSERT INTO users (
+        email, password_hash, role, 
+        full_name, phone, address_line1, address_line2, city, postal_code, country,
+        created_at, updated_at
+      ) 
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now')) 
+      RETURNING id, email, role, full_name, phone, address_line1, address_line2, city, postal_code, country, created_at, updated_at`,
+      args: [email, passwordHash, role, fullName, phone, addressLine1, addressLine2 || null, city, postalCode, country]
     });
 
     if (insertResult.rows.length === 0) {

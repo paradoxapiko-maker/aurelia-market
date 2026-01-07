@@ -7,7 +7,17 @@ interface AuthContextType {
   user: User | null;
   token: string | null;
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string) => Promise<void>;
+  register: (
+    email: string,
+    password: string,
+    fullName: string,
+    phone: string,
+    addressLine1: string,
+    addressLine2: string,
+    city: string,
+    postalCode: string,
+    country: string
+  ) => Promise<void>;
   logout: () => void;
   isLoading: boolean;
 }
@@ -87,7 +97,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const register = async (email: string, password: string): Promise<void> => {
+  const register = async (
+    email: string,
+    password: string,
+    fullName: string,
+    phone: string,
+    addressLine1: string,
+    addressLine2: string,
+    city: string,
+    postalCode: string,
+    country: string
+  ): Promise<void> => {
     try {
       console.log('[AUTH] Register attempt for:', email);
       
@@ -96,7 +116,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({
+          email,
+          password,
+          fullName,
+          phone,
+          addressLine1,
+          addressLine2,
+          city,
+          postalCode,
+          country
+        }),
         cache: 'no-store',
       });
 
